@@ -150,10 +150,10 @@ st.write(f'Average price for women perfume: ${average_price_women:.2f}')
 justified_text = """
 <div style="text-align: justify;">
 This suggests that perfumes marketed towards and purchased. 
-by men tend to have higher average pricing compared to perfumes targeted towards women.')
+by men tend to have higher average pricing compared to perfumes targeted towards women.
 Counter to typical gender-based pricing (where women's products often cost more), 
 men's perfumes command higher average prices. 
-This challenges the 'pink tax'( assumption in the fragrance 
+This challenges the 'pink tax' assumption in the fragrance 
 industry and suggests men might be less price-sensitive in this market.
 Perfume brands may be able to command premium pricing for men's fragrances,
 suggesting an opportunity to optimize pricing strategies based on gender.
