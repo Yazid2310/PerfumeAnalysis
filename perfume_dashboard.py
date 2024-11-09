@@ -147,14 +147,19 @@ st.write(f"Average Price for men perfume: ${average_price_men:.2f}")
 st.write(f'Average price for women perfume: ${average_price_women:.2f}')
 
 #Add description
-st.write('- This suggests that perfumes marketed towards and purchased. '
-         'by men tend to have higher average pricing compared to perfumes targeted towards women.')
-st.write("Counter to typical gender-based pricing (where women's products often cost more), "
-         "men's perfumes command higher average prices. "
-         "This challenges the 'pink tax'( assumption in the fragrance "
-         "industry and suggests men might be less price-sensitive in this market.")
-st.write("Perfume brands may be able to command premium pricing for men's fragrances, "
-         "suggesting an opportunity to optimize pricing strategies based on gender.")
+justified_text = """
+<div style="text-align: justify;">
+This suggests that perfumes marketed towards and purchased. 
+by men tend to have higher average pricing compared to perfumes targeted towards women.')
+Counter to typical gender-based pricing (where women's products often cost more), 
+men's perfumes command higher average prices. 
+This challenges the 'pink tax'( assumption in the fragrance 
+industry and suggests men might be less price-sensitive in this market.
+Perfume brands may be able to command premium pricing for men's fragrances,
+suggesting an opportunity to optimize pricing strategies based on gender.
+<div>
+"""
+st.markdown(justified_text, unsafe_allow_html=True
 
 # Add a title
 st.subheader("Total Perfume Sales by Gender")
