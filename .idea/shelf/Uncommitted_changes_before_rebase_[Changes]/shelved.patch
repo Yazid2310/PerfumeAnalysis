@@ -1,0 +1,1024 @@
+Index: save.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/save.py b/save.py
+--- a/save.py	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/save.py	(date 1730915725609)
+@@ -1,0 +1,93 @@
++# Count the occurrences of each location
++location_counts = all_perfume['itemLocation'].value_counts()
++# Print the top locations by count
++print("\nItem locations by count:")
++for location, count in location_counts.items():
++    print(f"{location}: {count}")
++
++
++# Initialize geolocator and dictionary for coordinates#
++geolocator = Nominatim(user_agent="perfume_map")
++location_coords = {}
++
++# Convert location names to coordinates, if not already known
++for location in location_counts.index:
++    try:
++        loc = geolocator.geocode(location)
++        if loc:
++            location_coords[location] = (loc.latitude, loc.longitude)
++        time.sleep(1)  # To avoid hitting request limits
++    except Exception as e:
++        print(f"Geocoding error for {location}: {e}")
++
++# Initialize map centered around a mean global location
++m = folium.Map(location=[20, 0], zoom_start=2)
++
++# Add markers for each location based on the sales count
++for location, count in location_counts.items():
++    if location in location_coords:
++        lat, lon = location_coords[location]
++        folium.CircleMarker(
++            location=(lat, lon),
++            radius=min(count * 0.1, 10),  # Scale radius by count
++            color="blue",
++            fill=True,
++            fill_color="blue",
++            fill_opacity=0.6,
++            popup=f"{location}: {count} sales",
++        ).add_to(m)
++
++# Save the map as an HTML file
++m.save("perfume_sales_map.html")
++
++
++
++# Define target (y) and features (X)
++y = all_perfume['sold']
++X = all_perfume.drop(columns=['sold', 'lastUpdated', 'availableText'])  # Drop non-relevant columns
++
++# Define categorical and numerical features
++categorical_features = ['brand', 'type', 'gender', 'itemLocation']
++numeric_features = ['price', 'available']
++
++# Preprocessing pipeline
++numeric_transformer = Pipeline(steps=[('scaler', StandardScaler())])
++categorical_transformer = Pipeline(steps=[('onehot', OneHotEncoder(handle_unknown='ignore'))])
++
++# Combine transformations
++preprocessor = ColumnTransformer(transformers=[
++    ('num', numeric_transformer, numeric_features),
++    ('cat', categorical_transformer, categorical_features)
++])
++
++# Split data into training and test sets
++X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
++
++# Define the model pipeline with preprocessing and the regressor
++model = Pipeline(steps=[
++    ('preprocessor', preprocessor),
++    ('regressor', RandomForestRegressor(n_estimators=100, random_state=0))
++])
++
++# Train the model
++model.fit(X_train, y_train)
++
++# Make predictions and evaluate
++y_pred = model.predict(X_test)
++mse = mean_squared_error(y_test, y_pred)
++r2 = r2_score(y_test, y_pred)
++
++print(f"Mean Squared Error: {mse:.2f}")
++print(f"R² Score: {r2:.2f}")
++
++# Extract feature importances
++importance = model.named_steps['regressor'].feature_importances_
++
++# Get feature names
++feature_names = numeric_features + list(model.named_steps['preprocessor'].transformers_[1][1]['onehot'].get_feature_names_out(categorical_features))
++
++# Create a DataFrame to organize feature importances
++feature_importance_df = pd.DataFrame({
++    'Feature': feature_names,
++    'Importance': importance
++}).sort_values(by='Importance', ascending=False)
+Index: Perfume.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import pandas as pd\r\nimport matplotlib.pyplot as plt\r\nimport seaborn as sns\r\nimport geopandas as gpd\r\nfrom geopandas.tools import geocode\r\nfrom geopy.geocoders import Nominatim\r\nimport folium\r\nimport time\r\nfrom sklearn.model_selection import train_test_split\r\nfrom sklearn.preprocessing import StandardScaler, OneHotEncoder\r\nfrom sklearn.compose import ColumnTransformer\r\nfrom sklearn.pipeline import Pipeline\r\nfrom sklearn.ensemble import RandomForestRegressor\r\nfrom sklearn.metrics import r2_score, mean_absolute_error\r\nfrom sklearn.metrics import mean_squared_error\r\nfrom sklearn.feature_selection import SelectKBest, f_regression\r\nimport numpy as np\r\nfrom sklearn.ensemble import GradientBoostingRegressor\r\n\r\n\r\n\r\n# Import data\r\nmen_perfume = pd.read_csv('ebay_mens_perfume.csv')\r\nwomen_perfume = pd.read_csv('ebay_womens_perfume.csv')\r\n\r\n# Reorganize and clean the data\r\nmen_perfume['gender'] = 'men'\r\nwomen_perfume['gender'] = 'women'\r\n\r\nall_perfume = pd.concat([men_perfume, women_perfume], ignore_index=True)\r\n\r\nprint(all_perfume.columns)\r\nprint(all_perfume.head())\r\n\r\nall_perfume = all_perfume.fillna({\r\n    'brand': 'Unknown',\r\n    'type': 'Unknown',\r\n    'available': 0,\r\n    'availableText': 'Not available',\r\n    'sold': 0,\r\n    'lastUpdated': 'Unknown'})\r\n\r\nprint((all_perfume.isnull().sum()))\r\nprint(all_perfume.dtypes)\r\n\r\n# Plotting the price range histogram\r\nplt.figure(figsize=(10, 6))\r\nsns.histplot(data=all_perfume, x='price', kde=True, bins=30, color='skyblue')\r\n\r\nplt.title('Perfume Prices Distribution')\r\nplt.xlabel('Price')\r\nplt.ylabel('Number of products listed')\r\n\r\nplt.show()\r\n\r\n# Calculate the average price, highest price, and lowest price\r\naverage_price = all_perfume['price'].mean()\r\nhighest_price = all_perfume['price'].max()\r\nlowest_price = all_perfume['price'].min()\r\n\r\n# Print the results\r\nprint(f\"The average price is: ${average_price:.2f}\")\r\nprint(f\"The highest price is: ${highest_price:.2f}\")\r\nprint(f\"The lowest price is: ${lowest_price:.2f}\")\r\n\r\n# Gender analysis\r\ngender_counts = all_perfume['gender'].value_counts()\r\nprint(f'Number of each {gender_counts} : ')\r\n\r\n# Calculate the average price for men and women perfumes\r\naverage_price_men = all_perfume[all_perfume['gender'] == 'men']['price'].mean()\r\naverage_price_women = all_perfume[all_perfume['gender'] == 'women']['price'].mean()\r\n\r\n# Print the average prices\r\nprint(f\"The average price for men's perfume is: ${average_price_men:.2f}\")\r\nprint(f\"The average price for women's perfume is: ${average_price_women:.2f}\")\r\n\r\n# Visualize the average prices\r\nplt.figure(figsize=(8, 5))\r\nfig, ax = plt.subplots()\r\ncolors = sns.color_palette('viridis', 2)\r\nax.bar(['Men', 'Women'], [average_price_men, average_price_women], color=colors)\r\n\r\nplt.title('Average Perfume Price by Gender')\r\nplt.xlabel('Gender')\r\nplt.ylabel('Average Price')\r\nplt.show()\r\n\r\n# Calculate the total sales for men and women perfumes\r\ntotal_sales_men = all_perfume[all_perfume['gender'] == 'men']['sold'].sum()\r\ntotal_sales_women = all_perfume[all_perfume['gender'] == 'women']['sold'].sum()\r\n\r\n# Print the total sales\r\nprint(f\"The total sales for men's perfume is: {total_sales_men}\")\r\nprint(f\"The total sales for women's perfume is: {total_sales_women}\")\r\n\r\n# Visualize the total sales\r\nplt.figure(figsize=(8, 5))\r\nfig, ax = plt.subplots()\r\nax.bar(['Men', 'Women'], [total_sales_men, total_sales_women], color=colors)\r\n\r\nplt.title('Total Perfume Sales by Gender')\r\nplt.xlabel('Gender')\r\nplt.ylabel('Total Sales')\r\nplt.show()\r\n\r\n# Calculate the total sales\r\ntotal_sales = total_sales_men + total_sales_women\r\n\r\n# Calculate the percentage sales\r\npercent_sales_men = (total_sales_men / total_sales) * 100\r\npercent_sales_women = (total_sales_women / total_sales) * 100\r\n\r\n# Print the percentage sales\r\nprint(f\"Percentage of sales for men's perfume: {percent_sales_men:.2f}%\")\r\nprint(f\"Percentage of sales for women's perfume: {percent_sales_women:.2f}%\")\r\n\r\n# Visualize the percentage sales in a pie chart\r\nplt.figure(figsize=(8, 5))\r\nlabels = ['Men', 'Women']\r\nsales_percentages = [percent_sales_men, percent_sales_women]\r\ncolors = sns.color_palette('viridis', len(labels))\r\nplt.pie(sales_percentages, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)\r\nplt.title('Total Perfume Sales by Gender (Percentage)')\r\nplt.axis('equal')  # Equal aspect ratio ensures the pie chart is circular.\r\nplt.show()\r\n\r\n# Calculate the total sales and average price for each brand\r\nbrand_sales = all_perfume.groupby('brand')['sold'].sum()\r\nbrand_avg_price = all_perfume.groupby('brand')['price'].mean()\r\n\r\n# Print total sales for each brand\r\nprint(\"Total sales for each brand:\")\r\nfor brand, sales in brand_sales.items():\r\n    print(f\"{brand}: {sales}\")\r\n\r\n# Print average price for each brand\r\nprint(\"\\nAverage price for each brand:\")\r\nfor brand, avg_price in brand_avg_price.items():\r\n    print(f\"{brand}: ${avg_price:.2f}\")\r\n\r\n# Identify the top 10 brands by sales\r\ntop_brands = brand_sales.nlargest(10)\r\n\r\n# Print the top 10 brands by sales\r\nprint(\"\\nTop 10 brands by sales:\")\r\nfor brand, sales in top_brands.items():\r\n    print(f\"{brand}: {sales}\")\r\n\r\n# Filter data for the top 10 brands\r\ntop_brand_avg_price = brand_avg_price[top_brands.index]\r\ntop_brand_sales = brand_sales[top_brands.index]\r\n\r\n# Visualize the relationship between the top 10 brand popularity and pricing with a bubble chart\r\nplt.figure(figsize=(12, 8))\r\nsns.scatterplot(\r\n    x=top_brand_avg_price,\r\n    y=top_brand_sales,\r\n    size=top_brand_sales,\r\n    sizes=(20, 2000),\r\n    legend=False,\r\n    alpha=0.6\r\n)\r\n\r\n# Annotate each point with the brand name\r\nfor brand in top_brand_avg_price.index:\r\n    plt.text(\r\n        x=top_brand_avg_price[brand],\r\n        y=top_brand_sales[brand],\r\n        s=brand,\r\n        fontsize=9,\r\n        ha='right',\r\n        va='bottom'\r\n    )\r\n\r\nplt.title('Relationship Between Top 10 Brand Popularity and Pricing')\r\nplt.xlabel('Average Price')\r\nplt.ylabel('Total Sales')\r\nplt.show()\r\n\r\n# Calculate the total sales for each perfume type\r\ntype_sales = all_perfume.groupby('type')['sold'].sum()\r\n\r\n# Identify the top 4 types by sales\r\ntop_types = type_sales.nlargest(4)\r\n\r\n# Print the top 10 types by sales\r\nprint(\"\\nTop perfume types by sales:\")\r\nfor perfume_type, sales in top_types.items():\r\n    print(f\"{perfume_type}: {sales}\")\r\n\r\n# Visualize the top 10 perfume types by sales\r\nplt.figure(figsize=(12, 8))\r\nsns.barplot(x=top_types.values, y=top_types.index, hue=top_types.index, palette=\"viridis\", legend=False)\r\n\r\nplt.title('Top 4 Perfume Types by Sales')\r\nplt.xlabel('Total Sales')\r\nplt.ylabel('Perfume Type')\r\n\r\n\r\n\r\n# Calculate the correlation between availability and sales\r\navailability_sales_corr = all_perfume['available'].corr(all_perfume['sold'])\r\nprint(f\"Correlation between availability and sales: {availability_sales_corr:.2f}\")\r\n\r\n# Visualize the correlation using a scatter plot\r\nplt.figure(figsize=(10, 6))\r\nsns.scatterplot(data=all_perfume, x='available', y='sold', alpha=0.6)\r\n\r\nplt.title('Correlation Between Availability and Sales')\r\nplt.xlabel('Availability')\r\nplt.ylabel('Total Sales')\r\n\r\n# Choose features and target variable\r\nfeatures = ['price', 'available', 'type', 'brand', 'gender']\r\nX = all_perfume[features]\r\ny = all_perfume['sold']\r\n\r\n# Split the data\r\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\r\n\r\n# Set up preprocessing pipelines\r\nnumeric_features = ['price', 'available']\r\nnumeric_transformer = Pipeline(steps=[('scaler', StandardScaler())])\r\n\r\ncategorical_features = ['type', 'brand', 'gender']\r\ncategorical_transformer = Pipeline(steps=[('onehot', OneHotEncoder(handle_unknown='ignore'))])\r\n\r\npreprocessor = ColumnTransformer(\r\n    transformers=[\r\n        ('num', numeric_transformer, numeric_features),\r\n        ('cat', categorical_transformer, categorical_features)\r\n    ])\r\n\r\n# Feature selection: Select the top k features\r\nk = 100\r\nfeature_selector = SelectKBest(f_regression, k=k)\r\n\r\n# Define the model\r\nmodel = Pipeline(steps=[\r\n    ('preprocessor', preprocessor),\r\n    ('feature_selection', feature_selector),\r\n    ('regressor', GradientBoostingRegressor(n_estimators=450, random_state=42))\r\n])\r\n\r\n# Train the model\r\nmodel.fit(X_train, y_train)\r\n\r\n# Evaluate the model\r\ny_pred = model.predict(X_test)\r\nmae = mean_absolute_error(y_test, y_pred)\r\nprint(f\"Mean Absolute Error: {mae}\")\r\n\r\n# Extract and group feature importances\r\nimportance = model.named_steps['regressor'].feature_importances_\r\n\r\n# Map original features back to their summed importance scores\r\nfeature_names = model.named_steps['preprocessor'].get_feature_names_out()\r\nselected_features = feature_names[feature_selector.get_support()]\r\n\r\n# Summing importance scores for original features\r\nsummed_importances = {\r\n    'price': sum(importance[i] for i, f in enumerate(selected_features) if 'price' in f),\r\n    'available': sum(importance[i] for i, f in enumerate(selected_features) if 'available' in f),\r\n    'type': sum(importance[i] for i, f in enumerate(selected_features) if 'type' in f),\r\n    'brand': sum(importance[i] for i, f in enumerate(selected_features) if 'brand' in f),\r\n    'gender': sum(importance[i] for i, f in enumerate(selected_features) if 'gender' in f)\r\n}\r\n\r\n# Plot the summarized feature importances\r\nplt.bar(summed_importances.keys(), summed_importances.values())\r\nplt.xlabel('Features')\r\nplt.ylabel('Summed Importance Score')\r\nplt.title('Distribution of Summed Feature Importance')\r\nplt.show()\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Perfume.py b/Perfume.py
+--- a/Perfume.py	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/Perfume.py	(date 1731112395199)
+@@ -181,8 +181,8 @@
+ # Calculate the total sales for each perfume type
+ type_sales = all_perfume.groupby('type')['sold'].sum()
+ 
+-# Identify the top 4 types by sales
+-top_types = type_sales.nlargest(4)
++# Identify the top 10 types by sales
++top_types = type_sales.nlargest(10)
+ 
+ # Print the top 10 types by sales
+ print("\nTop perfume types by sales:")
+@@ -193,7 +193,7 @@
+ plt.figure(figsize=(12, 8))
+ sns.barplot(x=top_types.values, y=top_types.index, hue=top_types.index, palette="viridis", legend=False)
+ 
+-plt.title('Top 4 Perfume Types by Sales')
++plt.title('Top  10 Perfume Types by Sales')
+ plt.xlabel('Total Sales')
+ plt.ylabel('Perfume Type')
+ 
+@@ -273,3 +273,98 @@
+ plt.ylabel('Summed Importance Score')
+ plt.title('Distribution of Summed Feature Importance')
+ plt.show()
++
++# Count the occurrences of each location
++location_counts = all_perfume['itemLocation'].value_counts()
++# Print the top locations by count
++print("\nItem locations by count:")
++for location, count in location_counts.items():
++    print(f"{location}: {count}")
++
++
++# Initialize geolocator and dictionary for coordinates#
++geolocator = Nominatim(user_agent="perfume_map")
++location_coords = {}
++
++# Convert location names to coordinates, if not already known
++for location in location_counts.index:
++    try:
++        loc = geolocator.geocode(location)
++        if loc:
++            location_coords[location] = (loc.latitude, loc.longitude)
++        time.sleep(1)  # To avoid hitting request limits
++    except Exception as e:
++        print(f"Geocoding error for {location}: {e}")
++
++# Initialize map centered around a mean global location
++m = folium.Map(location=[20, 0], zoom_start=2)
++
++# Add markers for each location based on the sales count
++for location, count in location_counts.items():
++    if location in location_coords:
++        lat, lon = location_coords[location]
++        folium.CircleMarker(
++            location=(lat, lon),
++            radius=min(count * 0.1, 10),  # Scale radius by count
++            color="blue",
++            fill=True,
++            fill_color="blue",
++            fill_opacity=0.6,
++            popup=f"{location}: {count} sales",
++        ).add_to(m)
++
++# Save the map as an HTML file
++m.save("perfume_sales_map.html")
++
++
++
++# Define target (y) and features (X)
++y = all_perfume['sold']
++X = all_perfume.drop(columns=['sold', 'lastUpdated', 'availableText'])  # Drop non-relevant columns
++
++# Define categorical and numerical features
++categorical_features = ['brand', 'type', 'gender', 'itemLocation']
++numeric_features = ['price', 'available']
++
++# Preprocessing pipeline
++numeric_transformer = Pipeline(steps=[('scaler', StandardScaler())])
++categorical_transformer = Pipeline(steps=[('onehot', OneHotEncoder(handle_unknown='ignore'))])
++
++# Combine transformations
++preprocessor = ColumnTransformer(transformers=[
++    ('num', numeric_transformer, numeric_features),
++    ('cat', categorical_transformer, categorical_features)
++])
++
++# Split data into training and test sets
++X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
++
++# Define the model pipeline with preprocessing and the regressor
++model = Pipeline(steps=[
++    ('preprocessor', preprocessor),
++    ('regressor', RandomForestRegressor(n_estimators=100, random_state=0))
++])
++
++# Train the model
++model.fit(X_train, y_train)
++
++# Make predictions and evaluate
++y_pred = model.predict(X_test)
++mse = mean_squared_error(y_test, y_pred)
++r2 = r2_score(y_test, y_pred)
++
++print(f"Mean Squared Error: {mse:.2f}")
++print(f"R² Score: {r2:.2f}")
++
++# Extract feature importances
++importance = model.named_steps['regressor'].feature_importances_
++
++# Get feature names
++feature_names = numeric_features + list(model.named_steps['preprocessor'].transformers_[1][1]['onehot'].get_feature_names_out(categorical_features))
++
++# Create a DataFrame to organize feature importances
++feature_importance_df = pd.DataFrame({
++    'Feature': feature_names,
++    'Importance': importance
++}).sort_values(by='Importance', ascending=False)
++
+Index: perfume_dashboard.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/perfume_dashboard.py b/perfume_dashboard.py
+--- a/perfume_dashboard.py	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/perfume_dashboard.py	(date 1731112162988)
+@@ -1,0 +1,490 @@
++import streamlit as st
++import pandas as pd
++import seaborn as sns
++import matplotlib.pyplot as plt
++import numpy as np
++from sklearn.model_selection import train_test_split
++from sklearn.preprocessing import StandardScaler, OneHotEncoder
++from sklearn.compose import ColumnTransformer
++from sklearn.pipeline import Pipeline
++from sklearn.ensemble import GradientBoostingRegressor
++from sklearn.metrics import mean_absolute_error
++from sklearn.feature_selection import SelectKBest, f_regression
++from streamlit import navigation
++import streamlit.components.v1 as components
++
++
++# Initialize Streamlit app
++def main():
++    st.title("Perfume Dashboard")
++    # Rest of your app code
++
++if __name__ == "__main__":
++    main()
++
++# Load data
++men_perfume = pd.read_csv('ebay_mens_perfume.csv')
++women_perfume = pd.read_csv('ebay_womens_perfume.csv')
++men_perfume['gender'] = 'men'
++women_perfume['gender'] = 'women'
++all_perfume = pd.concat([men_perfume, women_perfume], ignore_index=True)
++all_perfume = all_perfume.fillna({
++    'brand': 'Unknown',
++    'type': 'Unknown',
++    'available': 0,
++    'sold': 0
++})
++
++
++
++
++
++st.title("Perfume Sales Dashboard")
++st.write('This page presents the results of an analysis '
++         'of an e-commerce perfume dataset containing detailed information '
++         'on 2000 perfume listings from eBay. The scope of the project is to determine which features '
++         'are essential for the customer to sell the most perfumes. For this, I will start with a global '
++         'analysis of the data and I will end with a sales prediction model based on the different features, '
++         'which are price, availability, type, gender and brand.')
++
++
++
++
++st.sidebar.title('Perfume project analysis')
++with st.sidebar:
++    st.subheader('Disclaimer')
++    st.write('The analysis and insights presented in this portfolio are based '
++             'solely on a dataset of e-commerce perfume listings from eBay. The findings '
++             'are for academic or work-related purposes and should not be considered as '
++             'actionable business insights or generalizable to the broader market. The data '
++             'is limited to this specific dataset and is not intended to reflect real-world '
++             'trends or consumer behavior outside of this project.')
++    st.subheader('Data Source')
++    kaggle_link = "https://www.kaggle.com/datasets/kanchana1990/perfume-e-commerce-dataset-2024/data"
++    st.markdown(f'<a href="{kaggle_link}" target="_blank" style="color:blue; font-size:16px;">Perfume E-Commerce Dataset 2024 </a>',
++        unsafe_allow_html=True)
++    st.subheader('Social Networks')
++    st.sidebar.markdown("[![Linkedin](https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg)](https://www.linkedin.com/in/yazid-aboudou)")
++    st.sidebar.markdown(
++        """
++        <a href="https://github.com/Yazid2310">
++            <img src="https://img.icons8.com/material-outlined/48/000000/github.png" width="60" height="60">
++        </a>
++        """,
++        unsafe_allow_html=True)
++
++
++
++
++
++# Visual 1: Price Distribution
++st.subheader("Perfume Prices Distribution")
++# Add a range slider for price
++min_price, max_price = st.slider(
++    'Select price range',
++    min_value=float(all_perfume['price'].min()),
++    max_value=float(all_perfume['price'].max()),
++    value=(float(all_perfume['price'].min()), float(all_perfume['price'].max()))
++)
++
++# Filter the data based on the selected price range
++filtered_data = all_perfume[(all_perfume['price'] >= min_price) & (all_perfume['price'] <= max_price)]
++
++#Plot
++fig, ax = plt.subplots()
++sns.histplot(data=filtered_data, x='price', kde=True, bins=30, color='skyblue', ax=ax)
++ax.set_title('Perfume Prices Distribution')
++ax.set_xlabel('Price')
++ax.set_ylabel('Number of Products')
++st.pyplot(fig)
++
++# Calculate and Display Summary Statistics
++average_price = all_perfume['price'].mean()
++highest_price = all_perfume['price'].max()
++lowest_price = all_perfume['price'].min()
++
++
++
++st.write(f"Average Price: ${average_price:.2f}")
++st.write(f"Highest Price: ${highest_price:.2f}")
++st.write(f"Lowest Price: ${lowest_price:.2f}")
++
++# Add a description
++st.write('- The chart shows the distribution of perfume prices with a long tail towards higher prices.')
++st.write('- The majority of perfumes are priced below 100, with a peak around 50-100 price range.')
++
++
++
++
++justified_text = """
++<div style="text-align: justify;">
++The perfume price distribution chart reveals a strong concentration of products in the lower price range, 
++with the majority priced between $0 and $50. This indicates that the perfume market is highly competitive 
++at lower price points, likely catering to price-sensitive consumers. The right-skewed distribution suggests 
++that while luxury or high-end perfumes (priced above $100) exist, they represent a smaller segment of the 
++market. This could highlight an opportunity for companies to introduce more premium products or create 
++differentiated offerings to capture a niche but potentially profitable high-end segment. Additionally, 
++businesses should focus on maintaining competitive pricing for mass-market products, as the bulk of consumer 
++demand is likely in the affordable range.
++<div>
++"""
++st.markdown(justified_text, unsafe_allow_html=True)
++
++# Gender Analysis
++st.subheader("Average Perfume Price by Gender")
++average_price_men = all_perfume[all_perfume['gender'] == 'men']['price'].mean()
++average_price_women = all_perfume[all_perfume['gender'] == 'women']['price'].mean()
++
++
++fig, ax = plt.subplots()
++ax.bar(['Men', 'Women'], [average_price_men, average_price_women], color=sns.color_palette('viridis', 2))
++ax.set_title('Average Perfume Price by Gender')
++ax.set_xlabel('Gender')
++ax.set_ylabel('Average Price')
++st.pyplot(fig)
++
++st.write(f"Average Price for men perfume: ${average_price_men:.2f}")
++st.write(f'Average price for women perfume: ${average_price_women:.2f}')
++
++#Add description
++st.write('- This suggests that perfumes marketed towards and purchased. '
++         'by men tend to have higher average pricing compared to perfumes targeted towards women.')
++st.write("Counter to typical gender-based pricing (where women's products often cost more), "
++         "men's perfumes command higher average prices. "
++         "This challenges the 'pink tax'( assumption in the fragrance "
++         "industry and suggests men might be less price-sensitive in this market.")
++st.write("Perfume brands may be able to command premium pricing for men's fragrances, "
++         "suggesting an opportunity to optimize pricing strategies based on gender.")
++
++# Add a title
++st.subheader("Total Perfume Sales by Gender")
++
++# Calculate the total sales and average price for each brand
++brand_sales = all_perfume.groupby('brand')['sold'].sum()
++brand_avg_price = all_perfume.groupby('brand')['price'].mean()
++
++# Display total sales and average price for each brand
++# Identify the top 10 brands by sales
++top_brands = brand_sales.nlargest(10)
++
++# Convert top_brands to a list to concatenate with "All" option
++brand_options = ["All"] + top_brands.index.tolist()
++brand_filter = st.selectbox("Select Brand", options=brand_options)
++
++# Filter the DataFrame based on the selected brand
++if brand_filter == "All":
++    filtered_df = all_perfume
++else:
++    filtered_df = all_perfume[all_perfume['brand'] == brand_filter]
++
++# Total Sales by Gender
++total_sales_men = filtered_df[filtered_df['gender'] == 'men']['sold'].sum()
++total_sales_women = filtered_df[filtered_df['gender'] == 'women']['sold'].sum()
++
++# Calculate the total sales
++total_sales = total_sales_men + total_sales_women
++
++# Calculate the percentage sales
++percent_sales_men = (total_sales_men / total_sales) * 100 if total_sales > 0 else 0
++percent_sales_women = (total_sales_women / total_sales) * 100 if total_sales > 0 else 0
++
++# Display bar chart
++st.write('This bar chart shows the total perfume sales broken down by gender.')
++fig, ax = plt.subplots()
++ax.bar(['Men', 'Women'], [total_sales_men, total_sales_women], color=sns.color_palette('viridis', 2))
++ax.set_title(f'Total Perfume Sales by Gender for {brand_filter}')
++ax.set_xlabel('Gender')
++ax.set_ylabel('Total Sales')
++st.pyplot(fig)
++
++# Display metrics with corrected quotation marks
++st.write(f'Total Sales Men: ${total_sales_men:.2f}')
++st.write(f'Total Sales Women: ${total_sales_women:.2f}')
++st.write(f'- Men account for significantly higher total perfume sales compared to women for the brand {brand_filter}.')
++
++# Create the pie chart
++fig, ax = plt.subplots(figsize=(8, 5))
++labels = ['Men', 'Women']
++sales_percentages = [percent_sales_men, percent_sales_women]
++colors = sns.color_palette('viridis', len(labels))
++
++ax.pie(sales_percentages, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
++ax.set_title(f'Total Perfume Sales by Gender (%) for {brand_filter}')
++ax.axis('equal')
++
++st.pyplot(fig)
++
++
++# Add description
++st.write(f'- The pie chart further illustrates the gender breakdown for the brand {brand_filter}.')
++
++justified_text = """
++<div style="text-align: justify;">
++
++Perfume brands should consider tailoring their product offerings, marketing, and
++sales strategies to better cater to the larger male customer base.
++
++This indicates a stronger market demand or higher spending on fragrances targeted at men. 
++The notable disparity suggests an opportunity for businesses to explore strategies to increase 
++sales in the women's segment, such as targeted marketing campaigns, product innovation, or promotional 
++efforts. The higher sales in the men's category may reflect differing consumer preferences or cultural 
++factors that influence purchasing behavior, or it could imply that men are buying higher-priced products 
++or that more products are being marketed to men. For companies, this insight could guide decisions on 
++whether to continue focusing on the men's market or to diversify their offerings to better capture the 
++potential in the women's segment.
++</div>
++"""
++st.markdown(justified_text, unsafe_allow_html=True)
++
++
++#Add title
++st.subheader('Relationship between the top 10 brand popularity and pricing')
++
++# Calculate the total sales and average price for each brand
++brand_sales = all_perfume.groupby('brand')['sold'].sum()
++brand_avg_price = all_perfume.groupby('brand')['price'].mean()
++
++# Display total sales and average price for each brand
++# Identify the top 10 brands by sales
++top_brands = brand_sales.nlargest(10)
++# Display the top 10 brands by sales
++# Filter data for the top 10 brands
++top_brand_avg_price = brand_avg_price[top_brands.index]
++top_brand_sales = brand_sales[top_brands.index]
++
++# Add a dropdown filter to select a brand
++brand_options = ["All"] + list(top_brands.index)
++selected_brand = st.selectbox("Select a Brand:", brand_options)
++
++# Filter data based on selected brand
++if selected_brand != "All":
++    top_brand_avg_price = top_brand_avg_price[top_brand_avg_price.index == selected_brand]
++    top_brand_sales = top_brand_sales[top_brand_sales.index == selected_brand]
++
++# Visualize the relationship between the top 10 brand popularity and pricing with a bubble chart
++fig, ax = plt.subplots(figsize=(12, 8))
++sns.scatterplot(
++    x=top_brand_avg_price,
++    y=top_brand_sales,
++    size=top_brand_sales,
++    sizes=(20, 2000),
++    legend=False,
++    alpha=0.6,
++    ax=ax
++)
++
++# Annotate each point with the brand name
++for brand in top_brand_avg_price.index:
++    ax.text(
++        x=top_brand_avg_price[brand],
++        y=top_brand_sales[brand],
++        s=brand,
++        fontsize=9,
++        ha='right',
++        va='bottom'
++    )
++
++ax.set_title('Relationship Between Top 10 Brand Popularity and Pricing')
++ax.set_xlabel('Average Price')
++ax.set_ylabel('Total Sales')
++
++st.pyplot(fig)
++st.write('- There is a general positive correlation between a brands popularity (total sales) and its average price. ')
++
++st.write( '- Calvin Klein and Versace are the most popular brands, '
++           'with total sales over 100,000 and average prices around 30-35.')
++justified_text = """
++<div style="text-align: justify;">
++    Having a strong brand value is essential, though its impact varies depending on
++    the brand’s target audience and pricing strategy. For premium brands like Paco Rabanne, 
++    brand value plays a critical role in attracting a niche market segment that is willing to pay 
++    for exclusivity, luxury, and prestige, even if it results in lower overall sales. These brands 
++    leverage their high-end image to justify premium prices, building loyalty among customers who 
++    prioritize brand prestige over affordability. In contrast, affordable brands like Calvin Klein 
++    also benefit significantly from strong brand value, as a reputable name helps them stand out in 
++    a competitive market and attracts consumers seeking both value and a trusted brand. By positioning 
++    themselves as high-quality yet accessible, these brands can capture a larger, price-sensitive audience, 
++    achieving high sales volumes. Thus, brand value is important across all segments, though it’s leveraged differently: 
++    premium brands use it to justify higher prices and exclusivity, while affordable brands use it to drive popularity and trust, 
++    enhancing broad market appeal. This distinction underscores how brand value, when aligned with pricing strategy, can effectively 
++    shape a brand’s market position and overall sales performance.
++</div>
++"""
++
++st.markdown(justified_text, unsafe_allow_html=True)
++
++
++st.subheader('Correlation between availability and sales')
++
++# Filter out 'Unbranded' from the 'brand' column
++valid_brands = [brand for brand in all_perfume['brand'].unique() if brand.lower() != 'unbranded']
++
++
++# Visualize the correlation using a scatter plot
++
++fig, ax = plt.subplots(figsize=(10, 6))
++sns.scatterplot(data=filtered_df, x='available', y='sold', alpha=0.6, ax=ax)
++
++ax.set_title(f'Correlation Between Availability and Sales for {brand_filter}')
++ax.set_xlabel('Availability')
++ax.set_ylabel('Total Sales')
++
++st.pyplot(fig)
++# Calculate the correlation between availability and sales
++availability_sales_corr = all_perfume['available'].corr(all_perfume['sold'])
++st.write(f"Correlation between availability and sales: {availability_sales_corr:.2f}")
++
++st.write('- Limited availability might create a sense of exclusivity')
++st.write('- High-demand products might show as low availability due to selling out quickly')
++st.write('- Products with very high availability might indicate less popular items that do not sell as well')
++
++justified_text = """
++<div style="text-align: justify;">
++This is an interesting finding as it challenges the intuitive assumption that higher availability
++would lead to higher sales. Instead, the data suggests that limited availability might be a
++strategic advantage in the perfume market.
++
++The scatter plot underscores the importance of demand-driven strategies over high inventory levels alone. 
++For popular items with limited availability, high sales despite low stock suggest a "scarcity appeal" that 
++may enhance consumer desire, positioning these items as exclusive or highly sought-after. Conversely, products
++with high availability and low sales reveal the risks of overstocking, potentially reflecting poor demand 
++forecasting or weak product-market fit. This imbalance highlights the need for brands to tailor their inventory 
++strategies: high-demand items may benefit from more frequent restocking, while low-demand, overstocked items 
++might require promotions, price adjustments, or strategic reductions to avoid excessive holding costs. 
++Ultimately, the weak correlation between availability and sales suggests that brands should prioritize 
++understanding consumer preferences and demand patterns to drive sales effectively, rather than relying 
++solely on inventory levels.
++
++
++</div>
++"""
++st.markdown(justified_text, unsafe_allow_html=True)
++
++
++st.subheader("Feature Importance in Sales Prediction")
++
++# Feature Importance Plot (with GradientBoostingRegressor)
++# Define features and model pipeline
++features = ['price', 'available', 'type', 'brand', 'gender']
++X = all_perfume[features]
++y = all_perfume['sold']
++X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
++
++# Preprocessing and Model Pipeline
++numeric_features = ['price', 'available']
++numeric_transformer = Pipeline(steps=[('scaler', StandardScaler())])
++categorical_features = ['type', 'brand', 'gender']
++categorical_transformer = Pipeline(steps=[('onehot', OneHotEncoder(handle_unknown='ignore'))])
++
++preprocessor = ColumnTransformer(
++    transformers=[
++        ('num', numeric_transformer, numeric_features),
++        ('cat', categorical_transformer, categorical_features)
++    ])
++
++# Feature selection
++k = 100
++feature_selector = SelectKBest(f_regression, k=k)
++model = Pipeline(steps=[
++    ('preprocessor', preprocessor),
++    ('feature_selection', feature_selector),
++    ('regressor', GradientBoostingRegressor(n_estimators=450, random_state=42))
++])
++
++# Train and evaluate model
++model.fit(X_train, y_train)
++y_pred = model.predict(X_test)
++mae = mean_absolute_error(y_test, y_pred)
++st.write(f"Mean Absolute Error: {mae:.2f}")
++
++# Extract Feature Importances
++importance = model.named_steps['regressor'].feature_importances_
++feature_names = model.named_steps['preprocessor'].get_feature_names_out()
++selected_features = feature_names[feature_selector.get_support()]
++
++summed_importances = {
++    'price': sum(importance[i] for i, f in enumerate(selected_features) if 'price' in f),
++    'available': sum(importance[i] for i, f in enumerate(selected_features) if 'available' in f),
++    'type': sum(importance[i] for i, f in enumerate(selected_features) if 'type' in f),
++    'brand': sum(importance[i] for i, f in enumerate(selected_features) if 'brand' in f),
++    'gender': sum(importance[i] for i, f in enumerate(selected_features) if 'gender' in f)
++}
++
++# Plot Feature Importances
++fig, ax = plt.subplots()
++ax.bar(summed_importances.keys(), summed_importances.values())
++ax.set_xlabel('Features')
++ax.set_ylabel('Summed Importance Score')
++ax.set_title('Distribution of Summed Feature Importance')
++st.pyplot(fig)
++
++justified_text = """
++<div style="text-align: justify;">
++The chart highlights the distribution of feature importance in driving sales, 
++with brand emerging as the most significant factor, followed by availability, price, type, 
++and lastly, gender. This provides valuable insights for companies to refine their strategies. Brand 
++building is paramount, as a strong brand identity heavily influences sales and customer loyalty. Investing 
++in marketing, storytelling, and maintaining a positive reputation can help companies stand out in competitive 
++markets. The high importance of **availability** suggests that stockouts negatively affect performance, 
++underscoring the need for efficient supply chain management and accurate demand forecasting to align 
++inventory with consumer needs. 
++
++While price is less important than brand and availability, it still holds a notable influence, 
++meaning businesses should carefully craft pricing strategies that align with their brand image, 
++ensuring competitiveness without sacrificing profit margins. Additionally, the minimal importance 
++of gender implies the product has broad, universal appeal, suggesting that companies can focus 
++on inclusive marketing campaigns rather than over-segmenting their audience by gender. Finally, 
++the moderate influence of product type signals an opportunity for companies to innovate and 
++target popular or emerging categories, ensuring alignment with market trends without over-relying 
++on niche offerings.
++
++These insights provide actionable takeaways: prioritize brand development, ensure inventory 
++optimization, strike the right balance in pricing, create inclusive marketing strategies, and 
++focus product development on consumer trends. By aligning resources with these factors, businesses 
++can effectively shape their market positioning and enhance overall sales performance.
++
++</div>
++"""
++st.markdown(justified_text, unsafe_allow_html=True)
++
++
++st.subheader('Geographical distribution of perfume sales')
++html_file_path = r'C:\Users\User\PycharmProjects\pythonProject3\perfume_sales_map.html'
++
++with open(html_file_path, "r") as file:
++    html_content = file.read()
++
++components.html(html_content, height=600)
++
++justified_text= """
++<div style="text-align: justify;">
++The geographical distribution of perfume sales reveals key market trends and opportunities. 
++North America, particularly the United States and Canada, dominates with sales nearing 1.2 million units, 
++reflecting a well-established market with strong consumer demand for fragrance products. Similarly, key Asian 
++markets like China and India show significant sales, driven by large populations and a growing middle class. 
++Western Europe, including perfume industry leaders like France, the UK, and Germany, also shows notable sales 
++but at more moderate levels, highlighting these regions' long-standing affinity for luxury fragrances.
++
++Emerging markets present exciting growth potential. Brazil stands out in South America with mid-range sales, 
++while Russia and parts of the Middle East demonstrate increasing demand, signaling these regions' rising 
++interest in luxury goods. However, many regions, particularly in Africa, Oceania, and parts of Eastern 
++Europe, show low or no sales, highlighting untapped potential. Strategic focus here could involve 
++tailored marketing efforts, building distribution networks, and fostering brand awareness to unlock 
++future growth.
++
++From a strategic perspective, companies should continue to prioritize high-sales regions like North 
++America and Asia, where premium and diverse product offerings can capitalize on established consumer 
++preferences. In emerging markets such as Brazil, India, and Russia, companies can focus on increasing 
++market penetration through localized products or campaigns. Additionally, underdeveloped markets, 
++especially in Africa, represent long-term opportunities where targeted awareness campaigns and 
++expanding availability could drive growth as economies evolve.
++
++In terms of consumer trends, the strong sales in North America and Western Europe suggest a mature market 
++with preferences for premium and designer fragrances. These regions might benefit from exclusive product 
++lines or limited editions to maintain consumer interest. In Asia, particularly in growing economies like 
++China and India, the expanding middle class presents a promising opportunity for both luxury and mid-tier 
++products. Ultimately, while high-sales regions should continue to be nurtured, strategic efforts should 
++also aim at unlocking the potential in emerging and underdeveloped markets.
++</div>
++"""
++st.markdown(justified_text, unsafe_allow_html=True)
+Index: PerfumeStatistics.py
+===================================================================
+diff --git a/PerfumeStatistics.py b/PerfumeStatistics.py
+deleted file mode 100644
+--- a/PerfumeStatistics.py	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ /dev/null	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
+@@ -1,109 +0,0 @@
+-import pandas as pd
+-import matplotlib.pyplot as plt
+-import seaborn as sns
+-
+-# Import data
+-men_perfume = pd.read_csv('ebay_mens_perfume.csv')
+-women_perfume = pd.read_csv('ebay_womens_perfume.csv')
+-
+-# Reorganize and clean the data
+-men_perfume['gender'] = 'men'
+-women_perfume['gender'] = 'women'
+-
+-all_perfume = pd.concat([men_perfume, women_perfume], ignore_index=True)
+-
+-print(all_perfume.columns)
+-print(all_perfume.head())
+-
+-all_perfume = all_perfume.fillna({
+-    'brand': 'Unknown',
+-    'type': 'Unknown',
+-    'available': 0,
+-    'availableText': 'Not available',
+-    'sold': 0,
+-    'lastUpdated': 'Unknown'})
+-
+-print((all_perfume.isnull().sum()))
+-print(all_perfume.dtypes)
+-
+-# Plotting the price range histogram
+-plt.figure(figsize=(10, 6))
+-sns.histplot(data=all_perfume, x='price', kde=True, bins=30, color='skyblue')
+-
+-plt.title('Perfume Prices Distribution')
+-plt.xlabel('Price')
+-plt.ylabel('Number of products listed')
+-
+-plt.show()
+-
+-# Calculate the average price, highest price, and lowest price
+-average_price = all_perfume['price'].mean()
+-highest_price = all_perfume['price'].max()
+-lowest_price = all_perfume['price'].min()
+-
+-# Print the results
+-print(f"The average price is: ${average_price:.2f}")
+-print(f"The highest price is: ${highest_price:.2f}")
+-print(f"The lowest price is: ${lowest_price:.2f}")
+-
+-# Gender analysis
+-gender_counts = all_perfume['gender'].value_counts()
+-print(f'Number of each {gender_counts} : ')
+-
+-# Calculate the average price for men and women perfumes
+-average_price_men = all_perfume[all_perfume['gender'] == 'men']['price'].mean()
+-average_price_women = all_perfume[all_perfume['gender'] == 'women']['price'].mean()
+-
+-# Print the average prices
+-print(f"The average price for men's perfume is: ${average_price_men:.2f}")
+-print(f"The average price for women's perfume is: ${average_price_women:.2f}")
+-
+-# Visualize the average prices
+-plt.figure(figsize=(8, 5))
+-fig, ax = plt.subplots()
+-colors = sns.color_palette('viridis', 2)
+-ax.bar(['Men', 'Women'], [average_price_men, average_price_women], color=colors)
+-
+-plt.title('Average Perfume Price by Gender')
+-plt.xlabel('Gender')
+-plt.ylabel('Average Price')
+-plt.show()
+-
+-# Calculate the total sales for men and women perfumes
+-total_sales_men = all_perfume[all_perfume['gender'] == 'men']['sold'].sum()
+-total_sales_women = all_perfume[all_perfume['gender'] == 'women']['sold'].sum()
+-
+-# Print the total sales
+-print(f"The total sales for men's perfume is: {total_sales_men}")
+-print(f"The total sales for women's perfume is: {total_sales_women}")
+-
+-# Visualize the total sales
+-plt.figure(figsize=(8, 5))
+-fig, ax = plt.subplots()
+-ax.bar(['Men', 'Women'], [total_sales_men, total_sales_women], color=colors)
+-
+-plt.title('Total Perfume Sales by Gender')
+-plt.xlabel('Gender')
+-plt.ylabel('Total Sales')
+-plt.show()
+-
+-# Calculate the total sales
+-total_sales = total_sales_men + total_sales_women
+-
+-# Calculate the percentage sales
+-percent_sales_men = (total_sales_men / total_sales) * 100
+-percent_sales_women = (total_sales_women / total_sales) * 100
+-
+-# Print the percentage sales
+-print(f"Percentage of sales for men's perfume: {percent_sales_men:.2f}%")
+-print(f"Percentage of sales for women's perfume: {percent_sales_women:.2f}%")
+-
+-# Visualize the percentage sales in a pie chart
+-plt.figure(figsize=(8, 5))
+-labels = ['Men', 'Women']
+-sales_percentages = [percent_sales_men, percent_sales_women]
+-colors = sns.color_palette('viridis', len(labels))
+-plt.pie(sales_percentages, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+-plt.title('Total Perfume Sales by Gender (Percentage)')
+-plt.axis('equal')  # Equal aspect ratio ensures the pie chart is circular.
+-plt.show()
+\ No newline at end of file
+Index: .idea/modules.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ProjectModuleManager\">\r\n    <modules>\r\n      <module fileurl=\"file://$PROJECT_DIR$/.idea/pythonProject3.iml\" filepath=\"$PROJECT_DIR$/.idea/pythonProject3.iml\" />\r\n    </modules>\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/modules.xml b/.idea/modules.xml
+--- a/.idea/modules.xml	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/.idea/modules.xml	(date 1731114246637)
+@@ -2,7 +2,7 @@
+ <project version="4">
+   <component name="ProjectModuleManager">
+     <modules>
+-      <module fileurl="file://$PROJECT_DIR$/.idea/pythonProject3.iml" filepath="$PROJECT_DIR$/.idea/pythonProject3.iml" />
++      <module fileurl="file://$PROJECT_DIR$/.idea/PerfumeAnalysis.iml" filepath="$PROJECT_DIR$/.idea/PerfumeAnalysis.iml" />
+     </modules>
+   </component>
+ </project>
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ProjectRootManager\" version=\"2\" project-jdk-name=\"Python 3.13 (pythonProject3)\" project-jdk-type=\"Python SDK\" />\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+--- a/.idea/misc.xml	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/.idea/misc.xml	(date 1730823953381)
+@@ -1,4 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.13 (pythonProject3)" project-jdk-type="Python SDK" />
++  <component name="Black">
++    <option name="sdkName" value="Python 3.13 (pythonProject3)" />
++  </component>
++  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.13 (Marketing campaign)" project-jdk-type="Python SDK" />
+ </project>
+\ No newline at end of file
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ChangeListManager\">\r\n    <list default=\"true\" id=\"6a05734f-bbd5-428f-8fdc-4b71109ee559\" name=\"Changes\" comment=\"\" />\r\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\r\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\r\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\r\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\r\n  </component>\r\n  <component name=\"ProjectColorInfo\"><![CDATA[{\r\n  \"associatedIndex\": 4\r\n}]]></component>\r\n  <component name=\"ProjectId\" id=\"2oRD1MNpQ3CVluKIA1Br7mAacej\" />\r\n  <component name=\"ProjectLevelVcsManager\" settingsEditedManually=\"true\" />\r\n  <component name=\"ProjectViewState\">\r\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\r\n    <option name=\"showLibraryContents\" value=\"true\" />\r\n  </component>\r\n  <component name=\"PropertiesComponent\"><![CDATA[{\r\n  \"keyToString\": {\r\n    \"RunOnceActivity.ShowReadmeOnStart\": \"true\",\r\n    \"nodejs_package_manager_path\": \"npm\",\r\n    \"vue.rearranger.settings.migration\": \"true\"\r\n  }\r\n}]]></component>\r\n  <component name=\"SharedIndexes\">\r\n    <attachedChunks>\r\n      <set>\r\n        <option value=\"bundled-js-predefined-d6986cc7102b-5c90d61e3bab-JavaScript-PY-242.23726.102\" />\r\n        <option value=\"bundled-python-sdk-5e1850174b45-399fe30bd8c1-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-242.23726.102\" />\r\n      </set>\r\n    </attachedChunks>\r\n  </component>\r\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\r\n  <component name=\"TaskManager\">\r\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\r\n      <changelist id=\"6a05734f-bbd5-428f-8fdc-4b71109ee559\" name=\"Changes\" comment=\"\" />\r\n      <created>1730823279098</created>\r\n      <option name=\"number\" value=\"Default\" />\r\n      <option name=\"presentableId\" value=\"Default\" />\r\n      <updated>1730823279098</updated>\r\n      <workItem from=\"1730823280450\" duration=\"7000\" />\r\n    </task>\r\n    <servers />\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision c3143c050e0bf270a48086b64621d5a2a48296aa)
++++ b/.idea/workspace.xml	(date 1731114438085)
+@@ -1,15 +1,51 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
++  <component name="AutoImportSettings">
++    <option name="autoReloadType" value="SELECTIVE" />
++  </component>
+   <component name="ChangeListManager">
+-    <list default="true" id="6a05734f-bbd5-428f-8fdc-4b71109ee559" name="Changes" comment="" />
++    <list default="true" id="6a05734f-bbd5-428f-8fdc-4b71109ee559" name="Changes" comment="">
++      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/Perfume.py" beforeDir="false" afterPath="$PROJECT_DIR$/Perfume.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/PerfumeStatistics.py" beforeDir="false" />
++      <change beforePath="$PROJECT_DIR$/perfume_dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/perfume_dashboard.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/save.py" beforeDir="false" afterPath="$PROJECT_DIR$/save.py" afterDir="false" />
++    </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+     <option name="LAST_RESOLUTION" value="IGNORE" />
+   </component>
+-  <component name="ProjectColorInfo"><![CDATA[{
+-  "associatedIndex": 4
+-}]]></component>
++  <component name="FileTemplateManagerImpl">
++    <option name="RECENT_TEMPLATES">
++      <list>
++        <option value="Python Script" />
++      </list>
++    </option>
++  </component>
++  <component name="Git.Settings">
++    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
++  </component>
++  <component name="GitHubPullRequestSearchHistory">{
++  &quot;lastFilter&quot;: {
++    &quot;state&quot;: &quot;OPEN&quot;,
++    &quot;assignee&quot;: &quot;Yazid2310&quot;
++  }
++}</component>
++  <component name="GithubPullRequestsUISettings">{
++  &quot;selectedUrlAndAccountId&quot;: {
++    &quot;url&quot;: &quot;https://github.com/Yazid2310/PerfumeAnalysis.git&quot;,
++    &quot;accountId&quot;: &quot;93189f8e-811f-4e17-aafe-a40d00b75959&quot;
++  }
++}</component>
++  <component name="ProblemsViewState">
++    <option name="selectedTabId" value="CurrentFile" />
++  </component>
++  <component name="ProjectColorInfo">{
++  &quot;associatedIndex&quot;: 4
++}</component>
+   <component name="ProjectId" id="2oRD1MNpQ3CVluKIA1Br7mAacej" />
+   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+   <component name="ProjectViewState">
+@@ -18,11 +54,27 @@
+   </component>
+   <component name="PropertiesComponent"><![CDATA[{
+   "keyToString": {
++    "Python.Parfum.executor": "Run",
++    "Python.PerfumeStatistics.executor": "Run",
++    "Python.perfume_dashboard.executor": "Run",
+     "RunOnceActivity.ShowReadmeOnStart": "true",
++    "git-widget-placeholder": "master",
++    "ignore.virus.scanning.warn.message": "true",
++    "last_opened_file_path": "C:/Users/User/PycharmProjects/pythonProject3",
++    "node.js.detected.package.eslint": "true",
++    "node.js.detected.package.tslint": "true",
++    "node.js.selected.package.eslint": "(autodetect)",
++    "node.js.selected.package.tslint": "(autodetect)",
+     "nodejs_package_manager_path": "npm",
++    "settings.editor.selected.configurable": "vcs.Git",
+     "vue.rearranger.settings.migration": "true"
+   }
+ }]]></component>
++  <component name="RecentsManager">
++    <key name="MoveFile.RECENT_KEYS">
++      <recent name="C:\Users\User\PycharmProjects\pythonProject3" />
++    </key>
++  </component>
+   <component name="SharedIndexes">
+     <attachedChunks>
+       <set>
+@@ -39,8 +91,40 @@
+       <option name="number" value="Default" />
+       <option name="presentableId" value="Default" />
+       <updated>1730823279098</updated>
+-      <workItem from="1730823280450" duration="7000" />
++      <workItem from="1730823280450" duration="100085000" />
++      <workItem from="1731112726470" duration="185000" />
+     </task>
+     <servers />
+   </component>
++  <component name="TypeScriptGeneratedFilesManager">
++    <option name="version" value="3" />
++  </component>
++  <component name="Vcs.Log.Tabs.Properties">
++    <option name="TAB_STATES">
++      <map>
++        <entry key="MAIN">
++          <value>
++            <State>
++              <option name="FILTERS">
++                <map>
++                  <entry key="branch">
++                    <value>
++                      <list>
++                        <option value="HEAD" />
++                      </list>
++                    </value>
++                  </entry>
++                </map>
++              </option>
++            </State>
++          </value>
++        </entry>
++      </map>
++    </option>
++  </component>
++  <component name="com.intellij.coverage.CoverageDataManagerImpl">
++    <SUITE FILE_PATH="coverage/pythonProject3$PerfumeStatistics.coverage" NAME="PerfumeStatistics Coverage Results" MODIFIED="1730897050512" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
++    <SUITE FILE_PATH="coverage/pythonProject3$Parfum.coverage" NAME="Parfum Coverage Results" MODIFIED="1731002485372" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
++    <SUITE FILE_PATH="coverage/pythonProject3$perfume_dashboard.coverage" NAME="perfume_dashboard Coverage Results" MODIFIED="1730981727307" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
++  </component>
+ </project>
+\ No newline at end of file
