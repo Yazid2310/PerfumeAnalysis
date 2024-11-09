@@ -52,7 +52,7 @@ st.write('This page presents the results of an analysis '
 
 with st.sidebar:
     st.subheader('Disclaimer')
-    st.write('The analysis and insights presented in this portfolio are based '
+    st.write('The analysis and insights presented in this project are based '
              'solely on a dataset of e-commerce perfume listings from eBay. The findings '
              'are for academic or work-related purposes and should not be considered as '
              'actionable business insights or generalizable to the broader market. The data '
@@ -149,7 +149,7 @@ st.write(f'Average price for women perfume: ${average_price_women:.2f}')
 justified_text = """
 <div style="text-align: justify;">
 This suggests that perfumes marketed towards and purchased. 
-by men tend to have higher average pricing compared to perfumes targeted towards women.')
+by men tend to have higher average pricing compared to perfumes targeted towards women.
 Counter to typical gender-based pricing (where women's products often cost more), 
 men's perfumes command higher average prices. 
 This challenges the 'pink tax'( assumption in the fragrance 
@@ -429,7 +429,7 @@ with brand emerging as the most significant factor, followed by availability, pr
 and lastly, gender. This provides valuable insights for companies to refine their strategies. Brand 
 building is paramount, as a strong brand identity heavily influences sales and customer loyalty. Investing 
 in marketing, storytelling, and maintaining a positive reputation can help companies stand out in competitive 
-markets. The high importance of **availability** suggests that stockouts negatively affect performance, 
+markets. The high importance of availability suggests that stockouts negatively affect performance, 
 underscoring the need for efficient supply chain management and accurate demand forecasting to align 
 inventory with consumer needs. 
 
