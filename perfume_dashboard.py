@@ -16,11 +16,12 @@ import streamlit.components.v1 as components
 
 # Initialize Streamlit app
 def main():
-    st.title("Perfume Dashboard")
+    st.title("Perfume sales analysis")
     # Rest of your app code
 
 if __name__ == "__main__":
     main()
+
 
 # Load data
 men_perfume = pd.read_csv('ebay_mens_perfume.csv')
@@ -39,7 +40,6 @@ all_perfume = all_perfume.fillna({
 
 
 
-st.title("Perfume Sales Dashboard")
 st.write('This page presents the results of an analysis '
          'of an e-commerce perfume dataset containing detailed information '
          'on 2000 perfume listings from eBay. The scope of the project is to determine which features '
@@ -50,7 +50,6 @@ st.write('This page presents the results of an analysis '
 
 
 
-st.sidebar.title('Perfume project analysis')
 with st.sidebar:
     st.subheader('Disclaimer')
     st.write('The analysis and insights presented in this portfolio are based '
@@ -150,10 +149,10 @@ st.write(f'Average price for women perfume: ${average_price_women:.2f}')
 justified_text = """
 <div style="text-align: justify;">
 This suggests that perfumes marketed towards and purchased. 
-by men tend to have higher average pricing compared to perfumes targeted towards women.
+by men tend to have higher average pricing compared to perfumes targeted towards women.')
 Counter to typical gender-based pricing (where women's products often cost more), 
 men's perfumes command higher average prices. 
-This challenges the 'pink tax' assumption in the fragrance 
+This challenges the 'pink tax'( assumption in the fragrance 
 industry and suggests men might be less price-sensitive in this market.
 Perfume brands may be able to command premium pricing for men's fragrances,
 suggesting an opportunity to optimize pricing strategies based on gender.
@@ -450,6 +449,7 @@ can effectively shape their market positioning and enhance overall sales perform
 
 </div>
 """
+
 st.markdown(justified_text, unsafe_allow_html=True)
 
 
@@ -467,6 +467,7 @@ try:
 
 except FileNotFoundError:
     st.error(f"Error: The file '{html_file_path}' was not found.")
+
 
 justified_text= """
 <div style="text-align: justify;">
