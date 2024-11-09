@@ -449,12 +449,19 @@ st.markdown(justified_text, unsafe_allow_html=True)
 
 
 st.subheader('Geographical distribution of perfume sales')
-html_file_path = r'C:\Users\User\PycharmProjects\pythonProject3\perfume_sales_map.html'
+# Use the relative path to the HTML file
+html_file_path = 'perfume_sales_map.html'
 
-with open(html_file_path, "r") as file:
-    html_content = file.read()
+# Check if the file exists before trying to open it
+try:
+    with open(html_file_path, "r") as file:
+        html_content = file.read()
 
-components.html(html_content, height=600)
+    # Display the HTML map in the Streamlit app
+    components.html(html_content, height=600)
+
+except FileNotFoundError:
+    st.error(f"Error: The file '{html_file_path}' was not found.")
 
 justified_text= """
 <div style="text-align: justify;">
