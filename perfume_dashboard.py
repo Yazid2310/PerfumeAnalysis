@@ -159,7 +159,7 @@ Perfume brands may be able to command premium pricing for men's fragrances,
 suggesting an opportunity to optimize pricing strategies based on gender.
 <div>
 """
-st.markdown(justified_text, unsafe_allow_html=True
+st.markdown(justified_text, unsafe_allow_html=True)
 
 # Add a title
 st.subheader("Total Perfume Sales by Gender")
